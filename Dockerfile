@@ -32,12 +32,19 @@ WORKDIR /fredy
 
 # Install Chromium and curl (for healthcheck)
 # Using Alpine's chromium package which is much smaller
-RUN apk add --no-cache chromium curl
+# tini is a minimal init process that runs as PID 1 instead of Node.js.
+# Problem: Node.js as PID 1 does NOT reap zombie/orphaned child processes.
+# Each Chromium crawl leaves behind ~6 dying sub-processes (renderer, GPU, crashpad-handler).
+# Without tini, these accumulate over hours until the system hits its PID limit and
+# can no longer spawn new processes ("Resource temporarily unavailable", EAGAIN errno 11).
+# tini reaps these orphans automatically, preventing process exhaustion.
+RUN apk add --no-cache chromium curl tini
 
 ENV NODE_ENV=production \
     IS_DOCKER=true \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    CHROMIUM_FLAGS="--disable-crash-reporter --disable-gpu"
 
 # Install build dependencies for native modules, then remove them after yarn install
 COPY package.json yarn.lock ./
@@ -67,4 +74,7 @@ EXPOSE 9998
 VOLUME /db
 VOLUME /conf
 
+# tini acts as PID 1 and reaps zombie child processes (e.g. orphaned Chromium sub-processes)
+# Without tini, Node.js as PID 1 does NOT reap zombies, causing process exhaustion over time.
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "index.js"]

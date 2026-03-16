@@ -15,6 +15,7 @@ import { initGeocodingCron } from './lib/services/crons/geocoding-cron.js';
 import { getSettings } from './lib/services/storage/settingsStorage.js';
 import SqliteConnection, { computeDbPath } from './lib/services/storage/SqliteConnection.js';
 import { initJobExecutionService } from './lib/services/jobs/jobExecutionService.js';
+import { cleanupStalePuppeteerDirs } from './lib/services/extractor/puppeteerExtractor.js';
 
 //in the config, we store the path of the sqlite file, thus we must check if it is available
 const isConfigAccessible = await checkIfConfigIsAccessible();
@@ -63,6 +64,9 @@ initActiveCheckerCron();
 initGeocodingCron();
 
 logger.info(`Started Fredy successfully. Ui can be accessed via http://localhost:${settings.port}`);
+
+// Clean up any stale puppeteer temp dirs left over from previous crashed sessions
+cleanupStalePuppeteerDirs();
 
 // Initialize the lean Job Execution Service (schedules and bus listeners)
 initJobExecutionService({ providers, settings, intervalMs: INTERVAL });
